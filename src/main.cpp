@@ -12,9 +12,9 @@ const int pinCool2 = 26;
 const int pinWarm3 = 25;
 const int pinCool3 = 33;
 const int pinWarm4 = 32;
-const int pinCool4 = 35;
+const int pinCool4 = 2;
 
-const int channels[8] = {0,1,2,3,4,5,6,7};
+const int channels[9] = {0,1,2,3,4,5,6,7,8};
 
 const int warmChannel1 = 0;
 const int coolChannel1 = 1;
@@ -31,7 +31,7 @@ const int freq = 5000;
 const int resolution = 8;
 // Variables to debounce Rotary Encoder
 long timeOfLastDebounce = 0;
-int delayofDebounce = 0.01;
+int delayofDebounce = .01;
 
 long timeOfLastDebounce2 = 0;
 
@@ -49,6 +49,19 @@ int warmCounter=0;
 int coolCounter = 0;
 RTC_DATA_ATTR int stepIndexes[8] = {0,0,0,0,0,0,0,0};
 RTC_DATA_ATTR int lightValues[8] = {0,0,0,0,0,0,0,0};
+RTC_DATA_ATTR int tempIndex= 5;
+
+bool tempSteps[9][8] = {
+  {1,0,1,0,1,0,1,0},
+  {1,1,1,0,1,0,1,0},
+  {1,1,1,1,1,0,1,0},
+  {1,1,1,1,1,1,1,0},
+  {1,1,1,1,1,1,1,1},
+  {0,1,1,1,1,1,1,1},
+  {0,1,0,1,1,1,1,1},
+  {0,1,0,1,0,1,1,1},
+  {0,1,0,1,0,1,0,1}
+};
 int steps[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
@@ -112,7 +125,7 @@ pinMode(pinCool4, OUTPUT);
 
 }
 
-void increaseLight() {
+void increaseIntensity() {
   Serial.println("inc");
     for(int i=0;i<numLights;i++) {
 int index = stepIndexes[i]; 
@@ -122,10 +135,10 @@ int index = stepIndexes[i];
         lightValues[i]= steps[newValue];
     }
     }
-    
+    Serial.println(lightValues[7]);
 }
 
-void decreaseLight() {
+void decreaseIntensity() {
   Serial.println("dec");
 for(int i=0;i<numLights;i++) {
 int index = stepIndexes[i]; 
@@ -137,54 +150,86 @@ int index = stepIndexes[i];
 }
 }
 
+void increaseTemp() {
+  if(tempIndex<8) {
+    tempIndex++;
+    Serial.printf("new temp: %d\n", tempIndex);
+  }
+}
+
+void decreaseTemp() {
+if(tempIndex>0) {
+    tempIndex--;
+    Serial.printf("new temp: %d\n", tempIndex);
+  }
+}
+
+void increase() {
+  if(mode==1) {
+    increaseTemp();
+  }
+  else {
+    increaseIntensity();
+  }
+}
+
+void decrease() {
+if(mode==1) {
+    decreaseTemp();
+  }
+  else {
+    decreaseIntensity();
+  }
+}
+
 void checkRotary(int previousClock3, int previousData3, int pinClock3, int pinData3) {
     if ((previousClock3 == 0) && (previousData3 == 1)) {
     if ((digitalRead(pinClock3) == 1) && (digitalRead(pinData3) == 0)) {
-      increaseLight();
+      increase();
       
     }
     if ((digitalRead(pinClock3) == 1) && (digitalRead(pinData3) == 1)) {
-      decreaseLight();
+      decrease();
       
     }
   }
 
 if ((previousClock3 == 1) && (previousData3 == 0)) {
     if ((digitalRead(pinClock3) == 0) && (digitalRead(pinData3) == 1)) {
-      increaseLight();
+      increase();
       
     }
     if ((digitalRead(pinClock) == 0) && (digitalRead(pinData) == 0)) {
-      decreaseLight();
+      decrease();
       
     }
   }
 
 if ((previousClock3 == 1) && (previousData3 == 1)) {
     if ((digitalRead(pinClock3) == 0) && (digitalRead(pinData3) == 1)) {
-      increaseLight();
+      increase();
       
     }
     if ((digitalRead(pinClock3) == 0) && (digitalRead(pinData3) == 0)) {
-      decreaseLight();
+      decrease();
       
     }
   }  
 
 if ((previousClock3 == 0) && (previousData3 == 0)) {
     if ((digitalRead(pinClock3) == 1) && (digitalRead(pinData3) == 0)) {
-      increaseLight();
+      increase();
       
     }
     if ((digitalRead(pinClock3) == 1) && (digitalRead(pinData3) == 1)) {
-      decreaseLight();
+      decrease();
       
     }
   }    
 }
 
 void handleSwitch() {
-  Serial.println("sw");
+  
 if((millis() - lastSwitchDebounce) > switchDebounceDelay) {
             if(mode==1) {
               mode=0;
@@ -192,6 +237,8 @@ if((millis() - lastSwitchDebounce) > switchDebounceDelay) {
             else{
               mode =1;
             }
+            lastSwitchDebounce = millis();
+            Serial.printf("new mode %d\n", mode);
         }
 }
 
@@ -206,10 +253,14 @@ void loop() {
         timeOfLastDebounce = millis();
     }
 
-
-    //panel1
+ 
     for(int i=0;i<numLights;i++) {
-ledcWrite(channels[i], lightValues[i]);
+      int isOn = tempSteps[tempIndex][i];
+      int value = 0;
+      if(isOn) {
+        value = lightValues[i];
+      }
+ledcWrite(channels[i], value);
     }
     
 
